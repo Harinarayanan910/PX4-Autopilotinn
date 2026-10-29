@@ -72,10 +72,36 @@ void GZGimbal::Run()
 	updateParameters();
 
 	if (pollSetpoint()) {
-		//TODO handle device flags
+		if (_gimbal_device_flags & (gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_ROLL_LOCK |
+					    gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_PITCH_LOCK |
+					    gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_YAW_LOCK)) {
+
+			vehicle_attitude_s vehicle_attitude;
+
+			if (_vehicle_attitude_sub.copy(&vehicle_attitude)) {
+				const matrix::Eulerf euler_vehicle(matrix::Quatf(vehicle_attitude.q));
+
+				if (_gimbal_device_flags & gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_ROLL_LOCK) {
+					_roll_stp -= euler_vehicle.phi();
+				}
+
+				if (_gimbal_device_flags & gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_PITCH_LOCK) {
+					_pitch_stp -= euler_vehicle.theta();
+				}
+
+				if (_gimbal_device_flags & gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_YAW_LOCK) {
+					_yaw_stp -= euler_vehicle.psi();
+				}
+
+				_roll_stp = matrix::wrap_pi(_roll_stp);
+				_pitch_stp = matrix::wrap_pi(_pitch_stp);
+				_yaw_stp = matrix::wrap_pi(_yaw_stp);
+			}
+		}
+
 		publishJointCommand(_gimbal_roll_cmd_publisher, _roll_stp, _roll_rate_stp, _last_roll_stp, _roll_min, _roll_max, dt);
-		publishJointCommand(_gimbal_pitch_cmd_publisher, _pitch_stp, _pitch_rate_stp, _last_pitch_stp, _pitch_min, _pitch_max,
-				    dt);
+		publishJointCommand(_gimbal_pitch_cmd_publisher, _pitch_stp, _pitch_rate_stp, _last_pitch_stp, _pitch_min,
+				    _pitch_max, dt);
 		publishJointCommand(_gimbal_yaw_cmd_publisher, _yaw_stp, _yaw_rate_stp, _last_yaw_stp, _yaw_min, _yaw_max, dt);
 	}
 
@@ -98,11 +124,12 @@ void GZGimbal::gimbalIMUCallback(const gz::msgs::IMU &IMU_data)
 	pthread_mutex_lock(&_node_mutex);
 
 	static const matrix::Quatf q_FLU_to_FRD = matrix::Quatf(0.0f, 1.0f, 0.0f, 0.0f);
+	static const matrix::Quatf q_ENU_to_NED = matrix::Quatf(0.0f, cosf(M_PI_4_F), cosf(M_PI_4_F), 0.0f);
 	const matrix::Quatf q_gimbal_FLU = matrix::Quatf(IMU_data.orientation().w(),
 					   IMU_data.orientation().x(),
 					   IMU_data.orientation().y(),
 					   IMU_data.orientation().z());
-	_q_gimbal = q_FLU_to_FRD * q_gimbal_FLU * q_FLU_to_FRD.inversed();
+	_q_gimbal = q_ENU_to_NED * q_gimbal_FLU * q_FLU_to_FRD.inversed();
 
 	matrix::Vector3f rate = q_FLU_to_FRD.rotateVector(matrix::Vector3f(IMU_data.angular_velocity().x(),
 				IMU_data.angular_velocity().y(),
@@ -210,7 +237,7 @@ void GZGimbal::publishDeviceAttitude()
 
 	gimbal_att.target_system = 0; // Broadcast
 	gimbal_att.target_component = 0; // Broadcast
-	gimbal_att.device_flags = 0;
+	gimbal_att.device_flags = gimbal_device_attitude_status_s::DEVICE_FLAGS_YAW_IN_VEHICLE_FRAME;
 	_q_gimbal.copyTo(gimbal_att.q);
 	gimbal_att.angular_velocity_x = _gimbal_rate[0];
 	gimbal_att.angular_velocity_y = _gimbal_rate[1];
