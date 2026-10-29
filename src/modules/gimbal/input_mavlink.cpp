@@ -614,6 +614,9 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 		_last_device_compid = control_data.device_compid;
 		_stream_gimbal_manager_information(control_data);
 	}
+	if (update_result == UpdateResult::NoUpdate && control_data.type == ControlData::Type::LonLat) {
+		update_result = UpdateResult::UpdatedActive;
+	}
 
 	return update_result;
 }
