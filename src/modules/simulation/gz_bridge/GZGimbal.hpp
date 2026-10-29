@@ -9,6 +9,7 @@
 #include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/vehicle_command_ack.h>
 #include <uORB/topics/gimbal_controls.h>
+#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
@@ -42,6 +43,7 @@ private:
 
 	uORB::Subscription _gimbal_device_set_attitude_sub{ORB_ID(gimbal_device_set_attitude)};
 	uORB::Subscription _gimbal_controls_sub{ORB_ID(gimbal_controls)};
+	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::SubscriptionCallbackWorkItem _vehicle_command_sub{this, ORB_ID(vehicle_command)};
 
 	uORB::Publication<gimbal_device_attitude_status_s> _gimbal_device_attitude_status_pub{ORB_ID(gimbal_device_attitude_status)};
